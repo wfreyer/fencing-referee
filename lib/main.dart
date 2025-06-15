@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'services/bluetooth_service.dart';
-import 'services/match_service.dart';
+import 'package:fencing_referee/services/bluetooth_service.dart';
+import 'package:fencing_referee/services/match_service.dart';
+import 'package:fencing_referee/widgets/scoring_page.dart';
 import 'widgets/score_display.dart';
 import 'widgets/score_history_dialog.dart';
 import 'widgets/connection_status_bar.dart';
@@ -11,6 +12,7 @@ void main() {
   runApp(const MyApp());
 }
 
+/// The main application widget.
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -20,7 +22,7 @@ class MyApp extends StatelessWidget {
       title: 'Fencing Referee',
       theme: ThemeData(
         primarySwatch: Colors.blue,
-        useMaterial3: true,
+        visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
       home: const ScoringPage(),
     );
