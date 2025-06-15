@@ -66,55 +66,119 @@ class _ScoringPageState extends State<ScoringPage> {
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            TextField(
-              controller: _fencer1Controller,
-              decoration: const InputDecoration(labelText: 'Fencer 1 Name'),
-            ),
-            TextField(
-              controller: _fencer2Controller,
-              decoration: const InputDecoration(labelText: 'Fencer 2 Name'),
-            ),
-            const SizedBox(height: 20),
-            StreamBuilder<List<int>>(
-              stream: _matchService.scoreStream,
+      body: Column(
+        children: [
+          // Period indicator
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            color: Colors.grey[200],
+            child: StreamBuilder<int>(
+              stream: _matchService.periodStream,
               builder: (context, snapshot) {
-                final scores = snapshot.data ?? [0, 0];
-                return Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    ScoreDisplay(
-                      fencer: 1,
-                      score: scores[0],
-                      name: _fencer1Controller.text,
-                      isHit: _bluetoothService.isHit1,
-                      onIncrement: () => _incrementScore(1),
-                      onDecrement: () => _decrementScore(1),
-                      onNameTap: () {},
-                    ),
-                    ScoreDisplay(
-                      fencer: 2,
-                      score: scores[1],
-                      name: _fencer2Controller.text,
-                      isHit: _bluetoothService.isHit2,
-                      onIncrement: () => _incrementScore(2),
-                      onDecrement: () => _decrementScore(2),
-                      onNameTap: () {},
-                    ),
-                  ],
+                final period = snapshot.data ?? 1;
+                return Text(
+                  'Period $period',
+                  style: Theme.of(context).textTheme.titleLarge,
                 );
               },
             ),
-            const SizedBox(height: 20),
-            ElevatedButton(
+          ),
+          // Split screen for fencers
+          Expanded(
+            child: Row(
+              children: [
+                // Fencer 1 (Blue)
+                Expanded(
+                  child: Container(
+                    color: Colors.blue.withOpacity(0.1),
+                    child: Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: TextField(
+                            controller: _fencer1Controller,
+                            enabled: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Fencer 1 Name',
+                              border: OutlineInputBorder(),
+                              filled: true,
+                              fillColor: Colors.white,
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: StreamBuilder<List<int>>(
+                            stream: _matchService.scoreStream,
+                            builder: (context, snapshot) {
+                              final scores = snapshot.data ?? [0, 0];
+                              return ScoreDisplay(
+                                fencer: 1,
+                                score: scores[0],
+                                name: _fencer1Controller.text,
+                                isHit: _bluetoothService.isHit1,
+                                onIncrement: () => _incrementScore(1),
+                                onDecrement: () => _decrementScore(1),
+                                onNameTap: () {},
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                // Fencer 2 (Red)
+                Expanded(
+                  child: Container(
+                    color: Colors.red.withOpacity(0.1),
+                    child: Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: TextField(
+                            controller: _fencer2Controller,
+                            enabled: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Fencer 2 Name',
+                              border: OutlineInputBorder(),
+                              filled: true,
+                              fillColor: Colors.white,
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: StreamBuilder<List<int>>(
+                            stream: _matchService.scoreStream,
+                            builder: (context, snapshot) {
+                              final scores = snapshot.data ?? [0, 0];
+                              return ScoreDisplay(
+                                fencer: 2,
+                                score: scores[1],
+                                name: _fencer2Controller.text,
+                                isHit: _bluetoothService.isHit2,
+                                onIncrement: () => _incrementScore(2),
+                                onDecrement: () => _decrementScore(2),
+                                onNameTap: () {},
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Bottom controls
+          Container(
+            padding: const EdgeInsets.all(16.0),
+            child: ElevatedButton(
               onPressed: _resetMatch,
               child: const Text('Reset Match'),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

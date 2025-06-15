@@ -48,7 +48,7 @@ void main() {
       ).first,
     );
     final decoration = container.decoration as BoxDecoration;
-    expect(decoration.color, Colors.red.withOpacity(0.3));
+    expect(decoration.color, Colors.blue.withOpacity(0.3));
   });
 
   testWidgets('ScoreDisplay calls onIncrement when + button is pressed', (WidgetTester tester) async {
@@ -70,7 +70,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.byIcon(Icons.add));
+    await tester.tap(find.byIcon(Icons.add_circle_outline));
     await tester.pump();
 
     expect(incrementCalled, true);
@@ -95,7 +95,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.byIcon(Icons.remove));
+    await tester.tap(find.byIcon(Icons.remove_circle_outline));
     await tester.pump();
 
     expect(decrementCalled, true);
