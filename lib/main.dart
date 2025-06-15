@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'services/bluetooth_service.dart';
+import 'services/match_service.dart';
+import 'widgets/score_display.dart';
+import 'widgets/score_history_dialog.dart';
 
 void main() {
   runApp(const FencingRefereeApp());
@@ -29,159 +32,67 @@ class ScoringPage extends StatefulWidget {
 }
 
 class _ScoringPageState extends State<ScoringPage> {
-  int _scoreFencer1 = 0;
-  int _scoreFencer2 = 0;
-  int _period = 1;
+  final BluetoothService _bluetoothService = BluetoothService();
+  late final MatchService _matchService;
   String _fencer1Name = 'Fencer 1';
   String _fencer2Name = 'Fencer 2';
-  final TextEditingController _nameController1 = TextEditingController();
-  final TextEditingController _nameController2 = TextEditingController();
-  final BluetoothService _bluetoothService = BluetoothService();
-  DeviceConnectionState _connectionState = DeviceConnectionState.disconnected;
+  bool _isScanning = false;
 
   @override
   void initState() {
     super.initState();
-    _nameController1.text = _fencer1Name;
-    _nameController2.text = _fencer2Name;
-    _setupBluetoothService();
-  }
-
-  void _setupBluetoothService() {
-    _bluetoothService.connectionState.listen((state) {
-      setState(() {
-        _connectionState = state;
-      });
-    });
-
-    _bluetoothService.scoreUpdates.listen((data) {
-      setState(() {
-        if (data['fencer'] == 1) {
-          _scoreFencer1 = data['score'];
-        } else if (data['fencer'] == 2) {
-          _scoreFencer2 = data['score'];
-        }
-      });
-    });
+    _bluetoothService.initialize();
+    _matchService = MatchService(_bluetoothService);
   }
 
   @override
   void dispose() {
-    _nameController1.dispose();
-    _nameController2.dispose();
+    _matchService.dispose();
     _bluetoothService.dispose();
     super.dispose();
   }
 
-  void _incrementScore(int fencer) {
-    setState(() {
-      if (fencer == 1) {
-        _scoreFencer1++;
-      } else {
-        _scoreFencer2++;
-      }
-    });
-  }
-
-  void _decrementScore(int fencer) {
-    setState(() {
-      if (fencer == 1 && _scoreFencer1 > 0) {
-        _scoreFencer1--;
-      } else if (fencer == 2 && _scoreFencer2 > 0) {
-        _scoreFencer2--;
-      }
-    });
-  }
-
-  void _nextPeriod() {
-    setState(() {
-      if (_period < 3) {
-        _period++;
-      }
-    });
-  }
-
-  void _resetMatch() {
-    setState(() {
-      _scoreFencer1 = 0;
-      _scoreFencer2 = 0;
-      _period = 1;
-    });
-  }
-
-  void _showNameDialog(int fencer) {
-    final controller = fencer == 1 ? _nameController1 : _nameController2;
-    final currentName = fencer == 1 ? _fencer1Name : _fencer2Name;
-    controller.text = currentName;
-
+  void _showNameDialog(bool isFencer1) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Enter ${fencer == 1 ? "Left" : "Right"} Fencer Name'),
+        title: Text('Enter ${isFencer1 ? "Fencer 1" : "Fencer 2"}\'s Name'),
         content: TextField(
-          controller: controller,
           autofocus: true,
-          decoration: const InputDecoration(
-            hintText: 'Enter name',
-          ),
+          onSubmitted: (value) {
+            setState(() {
+              if (isFencer1) {
+                _fencer1Name = value;
+              } else {
+                _fencer2Name = value;
+              }
+            });
+            Navigator.pop(context);
+          },
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('Cancel'),
           ),
-          TextButton(
-            onPressed: () {
-              setState(() {
-                if (fencer == 1) {
-                  _fencer1Name = controller.text.isEmpty ? 'Fencer 1' : controller.text;
-                } else {
-                  _fencer2Name = controller.text.isEmpty ? 'Fencer 2' : controller.text;
-                }
-              });
-              Navigator.pop(context);
-            },
-            child: const Text('Save'),
-          ),
         ],
       ),
     );
   }
 
-  void _showBluetoothDialog() {
+  void _showScoreHistory() {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Bluetooth Connection'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Status: ${_connectionState.name}'),
-            const SizedBox(height: 16),
-            if (_connectionState == DeviceConnectionState.disconnected)
-              ElevatedButton(
-                onPressed: () {
-                  _bluetoothService.startScan();
-                  Navigator.pop(context);
-                },
-                child: const Text('Scan for Weapons'),
-              ),
-            if (_connectionState == DeviceConnectionState.connected)
-              ElevatedButton(
-                onPressed: () {
-                  _bluetoothService.disconnectAll();
-                  Navigator.pop(context);
-                },
-                child: const Text('Disconnect'),
-              ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
+      builder: (context) => StreamBuilder(
+        stream: _matchService.scoreHistoryStream,
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) return const SizedBox();
+          return ScoreHistoryDialog(
+            history: snapshot.data!,
+            fencer1Name: _fencer1Name,
+            fencer2Name: _fencer2Name,
+          );
+        },
       ),
     );
   }
@@ -191,116 +102,103 @@ class _ScoringPageState extends State<ScoringPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Fencing Referee'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         actions: [
           IconButton(
-            icon: Icon(
-              _connectionState == DeviceConnectionState.connected
-                  ? Icons.bluetooth_connected
-                  : Icons.bluetooth_disabled,
-              color: _connectionState == DeviceConnectionState.connected
-                  ? Colors.green
-                  : Colors.red,
-            ),
-            onPressed: _showBluetoothDialog,
+            icon: const Icon(Icons.history),
+            onPressed: _showScoreHistory,
           ),
         ],
       ),
       body: Column(
         children: [
-          // Period Display
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Text(
-              'Period $_period',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
+          StreamBuilder(
+            stream: _matchService.periodStream,
+            builder: (context, snapshot) {
+              final period = snapshot.data ?? 1;
+              return Container(
+                padding: const EdgeInsets.all(16),
+                color: Colors.blue.shade100,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Period $period',
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    ElevatedButton(
+                      onPressed: () => _matchService.nextPeriod(),
+                      child: const Text('Next Period'),
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
-
-          // Score Display
           Expanded(
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                // Fencer 1
-                Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    GestureDetector(
-                      onTap: () => _showNameDialog(1),
-                      child: Text(
-                        _fencer1Name,
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                    ),
-                    Text(
-                      '$_scoreFencer1',
-                      style: Theme.of(context).textTheme.displayLarge,
-                    ),
-                    Row(
-                      children: [
-                        IconButton(
-                          onPressed: () => _decrementScore(1),
-                          icon: const Icon(Icons.remove),
-                        ),
-                        IconButton(
-                          onPressed: () => _incrementScore(1),
-                          icon: const Icon(Icons.add),
-                        ),
-                      ],
-                    ),
-                  ],
+                Expanded(
+                  child: StreamBuilder(
+                    stream: _matchService.scoreStream,
+                    builder: (context, snapshot) {
+                      final scores = snapshot.data ?? [0, 0];
+                      return ScoreDisplay(
+                        fencer: 1,
+                        score: scores[0],
+                        name: _fencer1Name,
+                        isHit: _bluetoothService.isHit1,
+                        onIncrement: () => _matchService.incrementScore(1),
+                        onDecrement: () => _matchService.decrementScore(1),
+                        onNameTap: () => _showNameDialog(true),
+                      );
+                    },
+                  ),
                 ),
-
-                // Fencer 2
-                Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    GestureDetector(
-                      onTap: () => _showNameDialog(2),
-                      child: Text(
-                        _fencer2Name,
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                    ),
-                    Text(
-                      '$_scoreFencer2',
-                      style: Theme.of(context).textTheme.displayLarge,
-                    ),
-                    Row(
-                      children: [
-                        IconButton(
-                          onPressed: () => _decrementScore(2),
-                          icon: const Icon(Icons.remove),
-                        ),
-                        IconButton(
-                          onPressed: () => _incrementScore(2),
-                          icon: const Icon(Icons.add),
-                        ),
-                      ],
-                    ),
-                  ],
+                Expanded(
+                  child: StreamBuilder(
+                    stream: _matchService.scoreStream,
+                    builder: (context, snapshot) {
+                      final scores = snapshot.data ?? [0, 0];
+                      return ScoreDisplay(
+                        fencer: 2,
+                        score: scores[1],
+                        name: _fencer2Name,
+                        isHit: _bluetoothService.isHit2,
+                        onIncrement: () => _matchService.incrementScore(2),
+                        onDecrement: () => _matchService.decrementScore(2),
+                        onNameTap: () => _showNameDialog(false),
+                      );
+                    },
+                  ),
                 ),
               ],
             ),
           ),
-
-          // Control Buttons
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                ElevatedButton(
-                  onPressed: _nextPeriod,
-                  child: const Text('Next Period'),
-                ),
-                ElevatedButton(
-                  onPressed: _resetMatch,
-                  child: const Text('Reset Match'),
-                ),
-              ],
-            ),
+        ],
+      ),
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          FloatingActionButton(
+            onPressed: () {
+              setState(() {
+                _isScanning = !_isScanning;
+                if (_isScanning) {
+                  _bluetoothService.startScan();
+                } else {
+                  _bluetoothService.stopScan();
+                }
+              });
+            },
+            child: Icon(_isScanning ? Icons.stop : Icons.search),
+          ),
+          const SizedBox(height: 16),
+          FloatingActionButton(
+            onPressed: () => _matchService.resetMatch(),
+            child: const Icon(Icons.refresh),
           ),
         ],
       ),
