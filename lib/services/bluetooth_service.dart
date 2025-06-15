@@ -9,6 +9,7 @@ enum DeviceConnectionState {
   connecting,
   connected,
   error,
+  reconnecting,
 }
 
 class WeaponDevice {
@@ -19,6 +20,8 @@ class WeaponDevice {
   int lastScore;
   DateTime lastUpdate;
   bool canScore;
+  int reconnectAttempts;
+  DateTime? lastConnectionAttempt;
 
   WeaponDevice({
     required this.id,
@@ -28,6 +31,8 @@ class WeaponDevice {
     this.lastScore = 0,
     DateTime? lastUpdate,
     this.canScore = true,
+    this.reconnectAttempts = 0,
+    this.lastConnectionAttempt,
   }) : lastUpdate = lastUpdate ?? DateTime.now();
 }
 
@@ -35,10 +40,14 @@ class BluetoothService {
   final _connectionStateController = StreamController<DeviceConnectionState>.broadcast();
   final _scoreController = StreamController<Map<String, dynamic>>.broadcast();
   final _weaponsController = StreamController<List<WeaponDevice>>.broadcast();
+  final _errorController = StreamController<String>.broadcast();
   
   List<WeaponDevice> _connectedWeapons = [];
   bool _isHit1 = false;
   bool _isHit2 = false;
+  Timer? _reconnectionTimer;
+  static const _maxReconnectAttempts = 5;
+  static const _reconnectDelay = Duration(seconds: 5);
 
   // Getters for current state
   bool get isHit1 => _isHit1;
@@ -49,6 +58,7 @@ class BluetoothService {
   Stream<DeviceConnectionState> get connectionState => _connectionStateController.stream;
   Stream<Map<String, dynamic>> get scoreUpdates => _scoreController.stream;
   Stream<List<WeaponDevice>> get weapons => _weaponsController.stream;
+  Stream<String> get errors => _errorController.stream;
 
   Timer? _simulationTimer;
   DateTime? _lastHitTime;
@@ -90,11 +100,69 @@ class BluetoothService {
     // Initialize Bluetooth service
     _connectionStateController.add(DeviceConnectionState.disconnected);
     _weaponsController.add(_connectedWeapons);
+    _startReconnectionTimer();
+  }
+
+  void _startReconnectionTimer() {
+    _reconnectionTimer?.cancel();
+    _reconnectionTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
+      _checkConnections();
+    });
+  }
+
+  void _checkConnections() {
+    for (var weapon in _connectedWeapons) {
+      if (weapon.state != DeviceConnectionState.connected) {
+        _attemptReconnect(weapon);
+      }
+    }
+  }
+
+  Future<void> _attemptReconnect(WeaponDevice weapon) async {
+    if (weapon.reconnectAttempts >= _maxReconnectAttempts) {
+      _errorController.add('Failed to reconnect to ${weapon.name} after ${_maxReconnectAttempts} attempts');
+      return;
+    }
+
+    final now = DateTime.now();
+    if (weapon.lastConnectionAttempt != null &&
+        now.difference(weapon.lastConnectionAttempt!) < _reconnectDelay) {
+      return;
+    }
+
+    weapon.state = DeviceConnectionState.reconnecting;
+    weapon.lastConnectionAttempt = now;
+    weapon.reconnectAttempts++;
+    _weaponsController.add(_connectedWeapons);
+
+    try {
+      // Simulate reconnection attempt
+      await Future.delayed(const Duration(seconds: 2));
+      
+      // Randomly succeed or fail for simulation
+      if (weapon.reconnectAttempts % 2 == 0) {
+        weapon.state = DeviceConnectionState.connected;
+        weapon.reconnectAttempts = 0;
+        _errorController.add('Successfully reconnected to ${weapon.name}');
+      } else {
+        weapon.state = DeviceConnectionState.error;
+        _errorController.add('Failed to reconnect to ${weapon.name} (Attempt ${weapon.reconnectAttempts})');
+      }
+    } catch (e) {
+      weapon.state = DeviceConnectionState.error;
+      _errorController.add('Error reconnecting to ${weapon.name}: $e');
+    }
+
+    _weaponsController.add(_connectedWeapons);
   }
 
   void startScan() {
     // Start scanning for weapons
     _connectionStateController.add(DeviceConnectionState.scanning);
+    // Reset reconnection attempts for all weapons
+    for (var weapon in _connectedWeapons) {
+      weapon.reconnectAttempts = 0;
+    }
   }
 
   void stopScan() {
@@ -113,6 +181,9 @@ class BluetoothService {
     _connectionStateController.close();
     _scoreController.close();
     _weaponsController.close();
+    _errorController.close();
+    _reconnectionTimer?.cancel();
+    _simulationTimer?.cancel();
   }
 
   Future<void> startScanSimulated() async {

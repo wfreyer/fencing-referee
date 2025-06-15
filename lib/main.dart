@@ -3,20 +3,23 @@ import 'services/bluetooth_service.dart';
 import 'services/match_service.dart';
 import 'widgets/score_display.dart';
 import 'widgets/score_history_dialog.dart';
+import 'widgets/connection_status_bar.dart';
+import 'widgets/error_banner.dart';
+import 'dart:async';
 
 void main() {
-  runApp(const FencingRefereeApp());
+  runApp(const MyApp());
 }
 
-class FencingRefereeApp extends StatelessWidget {
-  const FencingRefereeApp({super.key});
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Fencing Referee',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+        primarySwatch: Colors.blue,
         useMaterial3: true,
       ),
       home: const ScoringPage(),
@@ -36,63 +39,47 @@ class _ScoringPageState extends State<ScoringPage> {
   late final MatchService _matchService;
   String _fencer1Name = 'Fencer 1';
   String _fencer2Name = 'Fencer 2';
-  bool _isScanning = false;
+  String? _errorMessage;
+  Timer? _errorTimer;
 
   @override
   void initState() {
     super.initState();
     _bluetoothService.initialize();
     _matchService = MatchService(_bluetoothService);
+    
+    // Listen for errors
+    _bluetoothService.errors.listen((error) {
+      setState(() {
+        _errorMessage = error;
+      });
+      // Clear error after 5 seconds
+      _errorTimer?.cancel();
+      _errorTimer = Timer(const Duration(seconds: 5), () {
+        if (mounted) {
+          setState(() {
+            _errorMessage = null;
+          });
+        }
+      });
+    });
   }
 
   @override
   void dispose() {
+    _errorTimer?.cancel();
     _matchService.dispose();
     _bluetoothService.dispose();
     super.dispose();
   }
 
-  void _showNameDialog(bool isFencer1) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Enter ${isFencer1 ? "Fencer 1" : "Fencer 2"}\'s Name'),
-        content: TextField(
-          autofocus: true,
-          onSubmitted: (value) {
-            setState(() {
-              if (isFencer1) {
-                _fencer1Name = value;
-              } else {
-                _fencer2Name = value;
-              }
-            });
-            Navigator.pop(context);
-          },
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _showScoreHistory() {
     showDialog(
       context: context,
-      builder: (context) => StreamBuilder(
-        stream: _matchService.scoreHistoryStream,
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) return const SizedBox();
-          return ScoreHistoryDialog(
-            history: snapshot.data!,
-            fencer1Name: _fencer1Name,
-            fencer2Name: _fencer2Name,
-          );
-        },
+      builder: (context) => ScoreHistoryDialog(
+        adjustments: _matchService.scoreHistory,
+        fencer1Name: _fencer1Name,
+        fencer2Name: _fencer2Name,
       ),
     );
   }
@@ -103,103 +90,146 @@ class _ScoringPageState extends State<ScoringPage> {
       appBar: AppBar(
         title: const Text('Fencing Referee'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.history),
-            onPressed: _showScoreHistory,
+          StreamBuilder<DeviceConnectionState>(
+            stream: _bluetoothService.connectionState,
+            initialData: DeviceConnectionState.disconnected,
+            builder: (context, snapshot) {
+              final state = snapshot.data!;
+              return IconButton(
+                icon: Icon(
+                  state == DeviceConnectionState.connected
+                      ? Icons.bluetooth_connected
+                      : state == DeviceConnectionState.connecting
+                          ? Icons.bluetooth_searching
+                          : state == DeviceConnectionState.reconnecting
+                              ? Icons.bluetooth_searching
+                              : Icons.bluetooth_disabled,
+                  color: state == DeviceConnectionState.connected
+                      ? Colors.green
+                      : state == DeviceConnectionState.error
+                          ? Colors.red
+                          : Colors.grey,
+                ),
+                onPressed: () {
+                  if (state == DeviceConnectionState.disconnected) {
+                    _bluetoothService.startScanSimulated();
+                  } else {
+                    _bluetoothService.disconnectAll();
+                  }
+                },
+              );
+            },
           ),
         ],
       ),
-      body: Column(
+      body: Stack(
         children: [
-          StreamBuilder(
-            stream: _matchService.periodStream,
-            builder: (context, snapshot) {
-              final period = snapshot.data ?? 1;
-              return Container(
-                padding: const EdgeInsets.all(16),
-                color: Colors.blue.shade100,
+          Column(
+            children: [
+              StreamBuilder<List<WeaponDevice>>(
+                stream: _bluetoothService.weapons,
+                builder: (context, snapshot) {
+                  final weapons = snapshot.data ?? [];
+                  return ConnectionStatusBar(
+                    weapons: weapons,
+                    fencer1Name: _fencer1Name,
+                    fencer2Name: _fencer2Name,
+                  );
+                },
+              ),
+              StreamBuilder(
+                stream: _matchService.periodStream,
+                initialData: 1,
+                builder: (context, snapshot) {
+                  return Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Text(
+                      'Period ${snapshot.data}',
+                      style: Theme.of(context).textTheme.headlineMedium,
+                    ),
+                  );
+                },
+              ),
+              Expanded(
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      'Period $period',
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
+                    Expanded(
+                      child: StreamBuilder(
+                        stream: _matchService.scoreStream1,
+                        initialData: 0,
+                        builder: (context, snapshot) {
+                          return ScoreDisplay(
+                            fencer: 1,
+                            score: snapshot.data!,
+                            name: _fencer1Name,
+                            isHit: _bluetoothService.isHit1,
+                            onIncrement: () => _matchService.incrementScore(1),
+                            onDecrement: () => _matchService.decrementScore(1),
+                            onNameTap: () {
+                              // TODO: Implement name editing
+                            },
+                          );
+                        },
                       ),
                     ),
+                    Expanded(
+                      child: StreamBuilder(
+                        stream: _matchService.scoreStream2,
+                        initialData: 0,
+                        builder: (context, snapshot) {
+                          return ScoreDisplay(
+                            fencer: 2,
+                            score: snapshot.data!,
+                            name: _fencer2Name,
+                            isHit: _bluetoothService.isHit2,
+                            onIncrement: () => _matchService.incrementScore(2),
+                            onDecrement: () => _matchService.decrementScore(2),
+                            onNameTap: () {
+                              // TODO: Implement name editing
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
                     ElevatedButton(
                       onPressed: () => _matchService.nextPeriod(),
                       child: const Text('Next Period'),
                     ),
+                    ElevatedButton(
+                      onPressed: () => _matchService.resetMatch(),
+                      child: const Text('Reset Match'),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.history),
+                      onPressed: _showScoreHistory,
+                    ),
                   ],
                 ),
-              );
-            },
+              ),
+            ],
           ),
-          Expanded(
-            child: Row(
-              children: [
-                Expanded(
-                  child: StreamBuilder(
-                    stream: _matchService.scoreStream,
-                    builder: (context, snapshot) {
-                      final scores = snapshot.data ?? [0, 0];
-                      return ScoreDisplay(
-                        fencer: 1,
-                        score: scores[0],
-                        name: _fencer1Name,
-                        isHit: _bluetoothService.isHit1,
-                        onIncrement: () => _matchService.incrementScore(1),
-                        onDecrement: () => _matchService.decrementScore(1),
-                        onNameTap: () => _showNameDialog(true),
-                      );
-                    },
-                  ),
-                ),
-                Expanded(
-                  child: StreamBuilder(
-                    stream: _matchService.scoreStream,
-                    builder: (context, snapshot) {
-                      final scores = snapshot.data ?? [0, 0];
-                      return ScoreDisplay(
-                        fencer: 2,
-                        score: scores[1],
-                        name: _fencer2Name,
-                        isHit: _bluetoothService.isHit2,
-                        onIncrement: () => _matchService.incrementScore(2),
-                        onDecrement: () => _matchService.decrementScore(2),
-                        onNameTap: () => _showNameDialog(false),
-                      );
-                    },
-                  ),
-                ),
-              ],
+          if (_errorMessage != null)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: ErrorBanner(
+                message: _errorMessage!,
+                onDismiss: () {
+                  setState(() {
+                    _errorMessage = null;
+                  });
+                },
+              ),
             ),
-          ),
-        ],
-      ),
-      floatingActionButton: Column(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          FloatingActionButton(
-            onPressed: () {
-              setState(() {
-                _isScanning = !_isScanning;
-                if (_isScanning) {
-                  _bluetoothService.startScan();
-                } else {
-                  _bluetoothService.stopScan();
-                }
-              });
-            },
-            child: Icon(_isScanning ? Icons.stop : Icons.search),
-          ),
-          const SizedBox(height: 16),
-          FloatingActionButton(
-            onPressed: () => _matchService.resetMatch(),
-            child: const Icon(Icons.refresh),
-          ),
         ],
       ),
     );
