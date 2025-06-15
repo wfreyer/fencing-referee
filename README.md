@@ -142,6 +142,29 @@ UUID: "0000XXXX-0000-1000-8000-00805F9B34FB"  // Replace XXXX with your service 
    - Match recording
    - Cloud synchronization
 
+## Testing & Coverage
+
+This project includes comprehensive unit and widget tests for core logic and UI components.
+
+### Running Tests
+
+To run all tests, use:
+
+```bash
+flutter test
+```
+
+This will execute all unit and widget tests in the `test/` directory.
+
+### Test Coverage
+- **Models:** Score adjustment logic is tested in `test/models/score_adjustment_test.dart`.
+- **Services:** Match state, scoring, and history logic are tested in `test/services/match_service_test.dart`.
+- **Widgets:** UI components such as score display and score history dialog are tested in `test/widgets/score_display_test.dart` and `test/widgets/score_history_dialog_test.dart`.
+
+All tests are designed to ensure correct behavior for scoring, period management, manual adjustments, and UI interactions.
+
+> **Tip:** For continuous integration, consider adding a GitHub Actions workflow to run tests on every push.
+
 ## Support
 
 For hardware integration support or app issues, please contact:
