@@ -25,12 +25,12 @@ class MatchService {
     final score = data['score'];
     if (fencer is int && (fencer == 1 || fencer == 2) && score is int) {
       final oldScore = _scores[fencer - 1];
-      _scores[fencer - 1] = score;
+      _scores[fencer - 1] = oldScore + 1;
       _scoreController.add(_scores);
       _addToHistory(
         fencer: fencer,
         oldScore: oldScore,
-        newScore: score,
+        newScore: _scores[fencer - 1],
         reason: 'Weapon hit',
       );
     }
