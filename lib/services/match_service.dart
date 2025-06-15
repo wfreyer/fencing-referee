@@ -7,6 +7,7 @@ class MatchService {
   final _scoreController = StreamController<List<int>>.broadcast();
   final _periodController = StreamController<int>.broadcast();
   final _historyController = StreamController<List<ScoreAdjustment>>.broadcast();
+  StreamSubscription? _btScoreSub;
   
   List<int> _scores = [0, 0];
   int _period = 1;
@@ -16,6 +17,23 @@ class MatchService {
     _scoreController.add(_scores);
     _periodController.add(_period);
     _historyController.add(_history);
+    _btScoreSub = _bluetoothService.scoreUpdates.listen(_onBluetoothScore);
+  }
+
+  void _onBluetoothScore(Map<String, dynamic> data) {
+    final fencer = data['fencer'];
+    final score = data['score'];
+    if (fencer is int && (fencer == 1 || fencer == 2) && score is int) {
+      final oldScore = _scores[fencer - 1];
+      _scores[fencer - 1] = score;
+      _scoreController.add(_scores);
+      _addToHistory(
+        fencer: fencer,
+        oldScore: oldScore,
+        newScore: score,
+        reason: 'Weapon hit',
+      );
+    }
   }
 
   // Getters for current state
@@ -105,5 +123,6 @@ class MatchService {
     _scoreController.close();
     _periodController.close();
     _historyController.close();
+    _btScoreSub?.cancel();
   }
 } 

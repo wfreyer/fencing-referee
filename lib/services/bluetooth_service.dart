@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'config_service.dart';
 
 enum DeviceConnectionState {
   disconnected,
@@ -41,6 +42,7 @@ class BluetoothService {
   final _scoreController = StreamController<Map<String, dynamic>>.broadcast();
   final _weaponsController = StreamController<List<WeaponDevice>>.broadcast();
   final _errorController = StreamController<String>.broadcast();
+  final _configService = ConfigService();
   
   List<WeaponDevice> _connectedWeapons = [];
   bool _isHit1 = false;
@@ -157,6 +159,10 @@ class BluetoothService {
   }
 
   void startScan() {
+    if (!_configService.useBluetooth) {
+      startScanSimulated();
+      return;
+    }
     // Start scanning for weapons
     _connectionStateController.add(DeviceConnectionState.scanning);
     // Reset reconnection attempts for all weapons
@@ -260,6 +266,21 @@ class BluetoothService {
                   'fencer': weapon.fencerNumber,
                   'score': weapon.lastScore,
                   'timestamp': weapon.lastUpdate.toIso8601String(),
+                });
+
+                // Visual cue: set isHit flag, then reset after 500ms
+                if (weapon.fencerNumber == 1) {
+                  _isHit1 = true;
+                  _isHit2 = false;
+                } else if (weapon.fencerNumber == 2) {
+                  _isHit2 = true;
+                  _isHit1 = false;
+                }
+                _weaponsController.add(_connectedWeapons); // force UI update
+                Future.delayed(const Duration(milliseconds: 500), () {
+                  _isHit1 = false;
+                  _isHit2 = false;
+                  _weaponsController.add(_connectedWeapons);
                 });
               }
             }

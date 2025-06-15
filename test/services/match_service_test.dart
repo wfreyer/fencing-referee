@@ -13,6 +13,7 @@ void main() {
 
   setUp(() {
     mockBluetoothService = MockBluetoothService();
+    when(mockBluetoothService.scoreUpdates).thenAnswer((_) => const Stream.empty());
     matchService = MatchService(mockBluetoothService);
   });
 
@@ -105,6 +106,68 @@ void main() {
       expect(resetEntry.oldScore, 2); // Sum of previous scores
       expect(resetEntry.newScore, 0);
       expect(resetEntry.reason, 'Match reset');
+    });
+
+    group('Bluetooth Score Updates', () {
+      test('listens to Bluetooth score updates', () async {
+        mockBluetoothService = MockBluetoothService();
+        when(mockBluetoothService.scoreUpdates).thenAnswer(
+          (_) => Stream.value({'fencer': 1, 'score': 1})
+        );
+        final matchService = MatchService(mockBluetoothService);
+        await Future.delayed(Duration.zero);
+        expect(matchService.currentScores, [1, 0]);
+      });
+
+      test('records Bluetooth score updates in history', () async {
+        mockBluetoothService = MockBluetoothService();
+        when(mockBluetoothService.scoreUpdates).thenAnswer(
+          (_) => Stream.value({'fencer': 1, 'score': 1})
+        );
+        final matchService = MatchService(mockBluetoothService);
+        await Future.delayed(Duration.zero);
+        final history = matchService.scoreHistory;
+        expect(history.length, 1);
+        expect(history[0].fencer, 1);
+        expect(history[0].oldScore, 0);
+        expect(history[0].newScore, 1);
+        expect(history[0].reason, 'Weapon hit');
+      });
+
+      test('handles multiple Bluetooth score updates', () async {
+        mockBluetoothService = MockBluetoothService();
+        when(mockBluetoothService.scoreUpdates).thenAnswer(
+          (_) => Stream.fromIterable([
+            {'fencer': 1, 'score': 1},
+            {'fencer': 2, 'score': 1},
+            {'fencer': 1, 'score': 2},
+          ])
+        );
+        final matchService = MatchService(mockBluetoothService);
+        await Future.delayed(Duration.zero);
+        expect(matchService.currentScores, [2, 1]);
+        final history = matchService.scoreHistory;
+        expect(history.length, 3);
+        expect(history[0].fencer, 1);
+        expect(history[1].fencer, 2);
+        expect(history[2].fencer, 1);
+      });
+
+      test('combines manual and Bluetooth score updates in history', () async {
+        mockBluetoothService = MockBluetoothService();
+        when(mockBluetoothService.scoreUpdates).thenAnswer(
+          (_) => Stream.value({'fencer': 2, 'score': 1})
+        );
+        final matchService = MatchService(mockBluetoothService);
+        matchService.incrementScore(1);
+        await Future.delayed(Duration.zero);
+        final history = matchService.scoreHistory;
+        expect(history.length, 2);
+        expect(history[0].fencer, 1);
+        expect(history[0].reason, 'Manual adjustment');
+        expect(history[1].fencer, 2);
+        expect(history[1].reason, 'Weapon hit');
+      });
     });
   });
 } 
