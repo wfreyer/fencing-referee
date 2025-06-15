@@ -31,6 +31,24 @@ class MockBluetoothService extends _i1.Mock implements _i2.BluetoothService {
   }
 
   @override
+  bool get isHit1 => (super.noSuchMethod(
+        Invocation.getter(#isHit1),
+        returnValue: false,
+      ) as bool);
+
+  @override
+  bool get isHit2 => (super.noSuchMethod(
+        Invocation.getter(#isHit2),
+        returnValue: false,
+      ) as bool);
+
+  @override
+  List<_i2.WeaponDevice> get connectedWeapons => (super.noSuchMethod(
+        Invocation.getter(#connectedWeapons),
+        returnValue: <_i2.WeaponDevice>[],
+      ) as List<_i2.WeaponDevice>);
+
+  @override
   _i3.Stream<_i2.DeviceConnectionState> get connectionState =>
       (super.noSuchMethod(
         Invocation.getter(#connectionState),
@@ -50,14 +68,37 @@ class MockBluetoothService extends _i1.Mock implements _i2.BluetoothService {
       ) as _i3.Stream<List<_i2.WeaponDevice>>);
 
   @override
-  _i3.Future<void> startScan() => (super.noSuchMethod(
+  _i3.Stream<String> get errors => (super.noSuchMethod(
+        Invocation.getter(#errors),
+        returnValue: _i3.Stream<String>.empty(),
+      ) as _i3.Stream<String>);
+
+  @override
+  void initialize() => super.noSuchMethod(
+        Invocation.method(
+          #initialize,
+          [],
+        ),
+        returnValueForMissingStub: null,
+      );
+
+  @override
+  void startScan() => super.noSuchMethod(
         Invocation.method(
           #startScan,
           [],
         ),
-        returnValue: _i3.Future<void>.value(),
-        returnValueForMissingStub: _i3.Future<void>.value(),
-      ) as _i3.Future<void>);
+        returnValueForMissingStub: null,
+      );
+
+  @override
+  void stopScan() => super.noSuchMethod(
+        Invocation.method(
+          #stopScan,
+          [],
+        ),
+        returnValueForMissingStub: null,
+      );
 
   @override
   void disconnectAll() => super.noSuchMethod(
@@ -76,4 +117,14 @@ class MockBluetoothService extends _i1.Mock implements _i2.BluetoothService {
         ),
         returnValueForMissingStub: null,
       );
+
+  @override
+  _i3.Future<void> startScanSimulated() => (super.noSuchMethod(
+        Invocation.method(
+          #startScanSimulated,
+          [],
+        ),
+        returnValue: _i3.Future<void>.value(),
+        returnValueForMissingStub: _i3.Future<void>.value(),
+      ) as _i3.Future<void>);
 }

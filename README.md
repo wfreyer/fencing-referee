@@ -208,3 +208,73 @@ For hardware integration support or app issues, please contact:
 ## License
 
 [Your License Information]
+
+## Requirements
+
+### Android Requirements
+- Android 8.0 (API level 26) or higher
+- Bluetooth Low Energy (BLE) support
+- Location services enabled (required for BLE scanning)
+
+### Permissions
+The app requires the following permissions:
+- Bluetooth
+- Bluetooth Admin
+- Bluetooth Scan
+- Bluetooth Connect
+- Location (required for BLE scanning)
+
+## Setup Process
+
+### First Launch
+When you first launch the app, you'll be guided through a setup process that:
+1. Checks if Bluetooth is enabled
+2. Requests necessary permissions
+3. Verifies all requirements are met
+
+### Troubleshooting
+
+#### Bluetooth Issues
+- Ensure Bluetooth is enabled in your device settings
+- If Bluetooth won't turn on, try restarting your device
+- Make sure your device supports Bluetooth Low Energy (BLE)
+
+#### Permission Issues
+If you denied any permissions:
+1. Go to your device's Settings
+2. Find the Fencing Referee app
+3. Tap on Permissions
+4. Enable all required permissions
+
+#### Location Services
+- Location services must be enabled for BLE scanning
+- The app only uses location services for Bluetooth functionality
+- No location data is collected or stored
+
+#### Connection Issues
+- Ensure your fencing weapons are powered on and in pairing mode
+- Keep your device within range of the weapons (typically 10 meters)
+- If connections drop frequently, try moving closer to the weapons
+
+## Development Notes
+
+### Permission Handling
+The app uses the `permission_handler` package to manage runtime permissions. The `PermissionService` class handles:
+- Checking current permission status
+- Requesting missing permissions
+- Verifying Bluetooth availability
+- Providing user feedback for permission issues
+
+### Setup Guide
+The `SetupGuide` widget provides a user-friendly interface for:
+- Initial app setup
+- Permission requests
+- Bluetooth enabling
+- Error handling and user feedback
+
+### Testing
+When testing the app:
+- Test on devices with Android 8.0 or higher
+- Verify permission handling on different Android versions
+- Test Bluetooth connectivity with actual fencing weapons
+- Verify error handling and user feedback

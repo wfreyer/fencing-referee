@@ -14,19 +14,18 @@ class ScoringPage extends StatefulWidget {
 
 class _ScoringPageState extends State<ScoringPage> {
   final BluetoothService _bluetoothService = BluetoothService();
-  final MatchService _matchService = MatchService();
+  late final MatchService _matchService;
   final TextEditingController _fencer1Controller = TextEditingController(text: 'Fencer 1');
   final TextEditingController _fencer2Controller = TextEditingController(text: 'Fencer 2');
 
   @override
   void initState() {
     super.initState();
-    _bluetoothService.init();
+    _matchService = MatchService(_bluetoothService);
   }
 
   @override
   void dispose() {
-    _bluetoothService.dispose();
     _fencer1Controller.dispose();
     _fencer2Controller.dispose();
     super.dispose();
@@ -48,7 +47,7 @@ class _ScoringPageState extends State<ScoringPage> {
     showDialog(
       context: context,
       builder: (context) => ScoreHistoryDialog(
-        adjustments: _matchService.scoreHistory,
+        history: _matchService.scoreHistory,
         fencer1Name: _fencer1Controller.text,
         fencer2Name: _fencer2Controller.text,
       ),
@@ -80,16 +79,16 @@ class _ScoringPageState extends State<ScoringPage> {
               decoration: const InputDecoration(labelText: 'Fencer 2 Name'),
             ),
             const SizedBox(height: 20),
-            StreamBuilder<int>(
+            StreamBuilder<List<int>>(
               stream: _matchService.scoreStream,
               builder: (context, snapshot) {
-                final score = snapshot.data ?? 0;
+                final scores = snapshot.data ?? [0, 0];
                 return Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
                     ScoreDisplay(
                       fencer: 1,
-                      score: score,
+                      score: scores[0],
                       name: _fencer1Controller.text,
                       isHit: _bluetoothService.isHit1,
                       onIncrement: () => _incrementScore(1),
@@ -98,7 +97,7 @@ class _ScoringPageState extends State<ScoringPage> {
                     ),
                     ScoreDisplay(
                       fencer: 2,
-                      score: score,
+                      score: scores[1],
                       name: _fencer2Controller.text,
                       isHit: _bluetoothService.isHit2,
                       onIncrement: () => _incrementScore(2),

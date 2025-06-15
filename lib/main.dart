@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:fencing_referee/services/bluetooth_service.dart';
 import 'package:fencing_referee/services/match_service.dart';
+import 'package:fencing_referee/services/permission_service.dart';
 import 'package:fencing_referee/widgets/scoring_page.dart';
 import 'widgets/score_display.dart';
 import 'widgets/score_history_dialog.dart';
 import 'widgets/connection_status_bar.dart';
 import 'widgets/error_banner.dart';
+import 'widgets/setup_guide.dart';
 import 'dart:async';
 
 void main() {
@@ -24,7 +26,52 @@ class MyApp extends StatelessWidget {
         primarySwatch: Colors.blue,
         visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
-      home: const ScoringPage(),
+      home: const AppInitializer(),
+    );
+  }
+}
+
+/// Widget that handles the initial app setup and permission checks.
+class AppInitializer extends StatefulWidget {
+  const AppInitializer({super.key});
+
+  @override
+  State<AppInitializer> createState() => _AppInitializerState();
+}
+
+class _AppInitializerState extends State<AppInitializer> {
+  final PermissionService _permissionService = PermissionService();
+  bool _isInitialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkInitialState();
+  }
+
+  Future<void> _checkInitialState() async {
+    final hasPermissions = await _permissionService.checkPermissions();
+    final isBluetoothEnabled = await _permissionService.isBluetoothEnabled();
+
+    if (hasPermissions && isBluetoothEnabled) {
+      setState(() {
+        _isInitialized = true;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isInitialized) {
+      return const ScoringPage();
+    }
+
+    return SetupGuide(
+      onSetupComplete: () {
+        setState(() {
+          _isInitialized = true;
+        });
+      },
     );
   }
 }
@@ -79,7 +126,7 @@ class _ScoringPageState extends State<ScoringPage> {
     showDialog(
       context: context,
       builder: (context) => ScoreHistoryDialog(
-        adjustments: _matchService.scoreHistory,
+        history: _matchService.scoreHistory,
         fencer1Name: _fencer1Name,
         fencer2Name: _fencer2Name,
       ),
@@ -156,39 +203,37 @@ class _ScoringPageState extends State<ScoringPage> {
                 child: Row(
                   children: [
                     Expanded(
-                      child: StreamBuilder(
-                        stream: _matchService.scoreStream1,
-                        initialData: 0,
+                      child: StreamBuilder<List<int>>(
+                        stream: _matchService.scoreStream,
+                        initialData: const [0, 0],
                         builder: (context, snapshot) {
+                          final scores = snapshot.data ?? [0, 0];
                           return ScoreDisplay(
                             fencer: 1,
-                            score: snapshot.data!,
+                            score: scores[0],
                             name: _fencer1Name,
                             isHit: _bluetoothService.isHit1,
                             onIncrement: () => _matchService.incrementScore(1),
                             onDecrement: () => _matchService.decrementScore(1),
-                            onNameTap: () {
-                              // TODO: Implement name editing
-                            },
+                            onNameTap: () {},
                           );
                         },
                       ),
                     ),
                     Expanded(
-                      child: StreamBuilder(
-                        stream: _matchService.scoreStream2,
-                        initialData: 0,
+                      child: StreamBuilder<List<int>>(
+                        stream: _matchService.scoreStream,
+                        initialData: const [0, 0],
                         builder: (context, snapshot) {
+                          final scores = snapshot.data ?? [0, 0];
                           return ScoreDisplay(
                             fencer: 2,
-                            score: snapshot.data!,
+                            score: scores[1],
                             name: _fencer2Name,
                             isHit: _bluetoothService.isHit2,
                             onIncrement: () => _matchService.incrementScore(2),
                             onDecrement: () => _matchService.decrementScore(2),
-                            onNameTap: () {
-                              // TODO: Implement name editing
-                            },
+                            onNameTap: () {},
                           );
                         },
                       ),
